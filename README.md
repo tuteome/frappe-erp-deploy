@@ -16,7 +16,7 @@ The official `ghcr.io/frappe/crm` images have **not contained the crm app since 
 still passes `APPS_JSON_BASE64`, but frappe_docker now reads apps from an `apps_json` build secret.
 
 `.github/workflows/build-image.yml` uses frappe_docker's documented layered build to produce
-`ghcr.io/lehan-musthafa/frappe-erp` with frappe, erpnext, hrms and crm. The workflow fails if any of those apps
+`ghcr.io/tuteome/frappe-erp` with frappe, erpnext, hrms and crm. The workflow fails if any of those apps
 is missing from the image.
 
 ## Files
@@ -41,7 +41,7 @@ is missing from the image.
 
 1. Open **Actions → Build Frappe ERP image → Run workflow**. Keep the branch as `version-16` and run it.
 2. Wait for a green run. The **Verify all apps** step prints each app's version. The run summary shows the
-   exact tag, for example `ghcr.io/lehan-musthafa/frappe-erp:version-16-3`.
+   exact tag, for example `ghcr.io/tuteome/frappe-erp:version-16-3`.
 
 ### 2. Let Coolify pull the image
 
@@ -50,7 +50,7 @@ The package is private by default. Pick one of these:
 - **Make it public** (simplest). The image contains only open-source code and no secrets.
   Go to github.com → your profile → **Packages → frappe-erp → Package settings → Change visibility → Public**.
 - **Keep it private.** Create a GitHub token (classic) with only `read:packages`. Then on the Coolify server, run
-  `docker login ghcr.io -u lehan-musthafa` and paste the token as the password.
+  `docker login ghcr.io -u tuteome` and paste the token as the password.
 
 ### 3. DNS
 

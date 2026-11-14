@@ -1,6 +1,6 @@
 services:
   configurator:
-    image: ghcr.io/lehan-musthafa/frappe-erp:version-16
+    image: ghcr.io/tuteome/frappe-erp:version-16
     platform: linux/amd64
     pull_policy: missing
     restart: on-failure
@@ -27,7 +27,7 @@ services:
         condition: service_started
 
   backend:
-    image: ghcr.io/lehan-musthafa/frappe-erp:version-16
+    image: ghcr.io/tuteome/frappe-erp:version-16
     platform: linux/amd64
     pull_policy: missing
     restart: unless-stopped
@@ -42,7 +42,7 @@ services:
         condition: service_completed_successfully
 
   frontend:
-    image: ghcr.io/lehan-musthafa/frappe-erp:version-16
+    image: ghcr.io/tuteome/frappe-erp:version-16
     platform: linux/amd64
     pull_policy: missing
     restart: unless-stopped
@@ -65,7 +65,7 @@ services:
         condition: service_started
 
   websocket:
-    image: ghcr.io/lehan-musthafa/frappe-erp:version-16
+    image: ghcr.io/tuteome/frappe-erp:version-16
     platform: linux/amd64
     pull_policy: missing
     restart: unless-stopped
@@ -77,7 +77,7 @@ services:
         condition: service_completed_successfully
 
   queue-short:
-    image: ghcr.io/lehan-musthafa/frappe-erp:version-16
+    image: ghcr.io/tuteome/frappe-erp:version-16
     platform: linux/amd64
     pull_policy: missing
     restart: unless-stopped
@@ -89,7 +89,7 @@ services:
         condition: service_completed_successfully
 
   queue-long:
-    image: ghcr.io/lehan-musthafa/frappe-erp:version-16
+    image: ghcr.io/tuteome/frappe-erp:version-16
     platform: linux/amd64
     pull_policy: missing
     restart: unless-stopped
@@ -101,7 +101,7 @@ services:
         condition: service_completed_successfully
 
   scheduler:
-    image: ghcr.io/lehan-musthafa/frappe-erp:version-16
+    image: ghcr.io/tuteome/frappe-erp:version-16
     platform: linux/amd64
     pull_policy: missing
     restart: unless-stopped
