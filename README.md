@@ -30,8 +30,10 @@ is missing from the image.
 - The DB root password is Coolify's generated `${SERVICE_PASSWORD_MARIADB}`.
 - Config values are written out literally, because Coolify can't parse `$$VAR` escapes.
 - `FRAPPE_SITE_NAME_HEADER` is left to nginx's default, `$host`.
-- The images are newer than the script's: MariaDB 12.3 LTS instead of 11.8, and Redis 8.10 instead of 8.6.
-  Frappe doesn't officially test these versions. `--innodb-snapshot-isolation=OFF` is kept, because 12.3 defaults it to ON.
+- MariaDB stays on **11.8**, the version Frappe tests. Do not move to MariaDB 12.x: it fails to create the site, because
+  HRMS's `ADD INDEX ... (employee, from_date, to_date)` is a syntax error there (`to_date` clashes with the newer
+  `TO_DATE` function, and Frappe does not quote index columns).
+- Redis is 8.10 instead of the script's 8.6.
 
 ---
 
@@ -95,7 +97,8 @@ bench new-site erp.tuteome.com \
 
 - The site name **must equal the domain**, because nginx picks the site from the Host header.
 - Keep the app order: hrms depends on erpnext.
-- This takes a few minutes. You can ignore the warning that the MariaDB version is not yet tested with Frappe.
+- If it prompts `Enter mysql super user [root]:`, press Enter.
+- This takes a few minutes.
 
 Then run:
 
