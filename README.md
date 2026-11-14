@@ -8,6 +8,7 @@ This repo runs one Frappe stack on Coolify with these apps:
 - **Helpdesk**: support tickets, served at `/helpdesk` (needs `telephony`, which is listed before it)
 - **Raven**: team chat, served at `/raven`
 - **Insights**: reports and dashboards, served at `/insights` (`version-3` branch; its `main` branch is the old 2.x line)
+- **Offsite Backups** (`offsite_backups`): daily backups to Cloudflare R2 (see step 9)
 
 All of them are installed on one site, so they share users and data. For example, a CRM deal can become an ERPNext customer and quotation.
 
@@ -38,6 +39,9 @@ is missing from the image.
   HRMS's `ADD INDEX ... (employee, from_date, to_date)` is a syntax error there (`to_date` clashes with the newer
   `TO_DATE` function, and Frappe does not quote index columns).
 - Redis is 8.10 instead of the script's 8.6.
+- `backend` sets `FORWARDED_ALLOW_IPS: "*"`. Gunicorn only trusts `X-Forwarded-Proto` from `127.0.0.1` by default,
+  but nginx runs in another container. Without this setting Frappe builds `http://` URLs, and the login page then
+  drops OAuth redirects, which breaks sign-in to the Raven mobile app.
 
 ---
 
@@ -97,7 +101,8 @@ bench new-site erp.tuteome.com \
   --db-root-password='<SERVICE_PASSWORD_MARIADB>' \
   --admin-password='<choose a strong one>' \
   --install-app erpnext --install-app hrms --install-app crm \
-  --install-app telephony --install-app helpdesk --install-app raven --install-app insights
+  --install-app telephony --install-app helpdesk --install-app raven --install-app insights \
+  --install-app offsite_backups
 ```
 
 - The site name **must equal the domain**, because nginx picks the site from the Host header.
@@ -122,10 +127,41 @@ Create real user accounts for people. Don't share the Administrator login.
 
 ### 9. Backups
 
-The `cron` (ofelia) container runs `bench --site all backup` every 6 hours. The backups are written to
-`sites/erp.tuteome.com/private/backups` inside the `sites` volume, which is on the same server.
-**Copy them off the server.** One way is a Coolify Scheduled Task on `backend` that uploads them to S3 or another remote.
-To include uploaded files in a backup, run `bench --site all backup --with-files`.
+The `cron` (ofelia) container runs `bench --site all backup` at 00:00, 06:00, 12:00 and 18:00 UTC. It writes
+database dumps to `sites/erp.tuteome.com/private/backups`. Attachments, Raven's included, stay on the server in
+`public/files` and `private/files`. So the `sites` volume holds everything a restore needs: the files,
+`site_config.json` (with the `encryption_key`), and recent database dumps.
+
+Off-server copies go to Cloudflare R2 in two independent ways. Use a **private** bucket for each, or one bucket with
+separate paths, and an R2 API token with **Object Read & Write** on that bucket only. Both copies contain
+`site_config.json`, which holds the DB password and the `encryption_key`, so the bucket must stay private.
+
+**Primary: the `offsite_backups` app.** It produces Frappe's own backup format, so restoring is a single `bench restore`.
+Frappe v16 moved S3, Google Drive and Dropbox backups out of core and into this app.
+
+1. In `/app/s3-backup-settings`, fill in these fields:
+   - **Endpoint URL**: `https://<account-id>.r2.cloudflarestorage.com`
+   - **Access Key ID** and **Secret Access Key**: from the R2 token
+   - **Bucket**: the bucket name. **Backup Files**: on. **Frequency**: Daily. **Notify Email**: your address.
+
+   Tick **Enabled** and save. Saving checks that the bucket is reachable. **Take Backup Now** runs a test upload.
+2. In R2, add a lifecycle rule that deletes objects after, for example, 30 days. Every upload is a full copy,
+   and the app never deletes old copies.
+3. To restore, run:
+   `bench --site <site> restore <database.sql.gz> --with-public-files <files.tar> --with-private-files <private-files.tar>`
+
+**Secondary: a Coolify storage backup of the `sites` volume.** It still works if Frappe itself is broken.
+
+1. Add R2 in Coolify under **Storages** (S3, same endpoint).
+2. Open the resource → **Backups → Add Backup → storage backup**. For the target, pick **one** `…: sites` entry
+   (they're all the same volume), for example `Backend: sites`. Set the frequency to `30 0 * * *`, which runs
+   30 minutes after the 00:00 UTC dump. Adjust it if Coolify isn't on UTC. Then set how many backups to keep.
+3. **Don't** back up `db-data`. A copy of MariaDB's files taken while it's running can be inconsistent, and the
+   dumps inside `sites` are the safe database backup. `redis-queue-data` doesn't need a backup.
+4. To restore, extract the archive, run `bench --site <site> restore <private/backups/...-database.sql.gz>`,
+   and copy `public/files` and `private/files` back into the site folder.
+
+**Test a restore** from the primary backup once, into a scratch site.
 
 ### 10. Upgrades
 

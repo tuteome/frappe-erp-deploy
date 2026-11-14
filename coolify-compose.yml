@@ -35,6 +35,10 @@ services:
       GUNICORN_THREADS: "4"
       GUNICORN_TIMEOUT: "120"
       GUNICORN_WORKERS: "2"
+      # Trust X-Forwarded-Proto from nginx (another container), or Frappe builds http:// URLs
+      # and the login page drops OAuth redirects (breaks the Raven mobile app sign-in).
+      # Safe: backend publishes no ports, so only containers on this network can reach it.
+      FORWARDED_ALLOW_IPS: "*"
     volumes:
       - sites:/home/frappe/frappe-bench/sites
     depends_on:
@@ -109,7 +113,7 @@ services:
     labels:
       ofelia.enabled: "true"
       ofelia.job-exec.datecron.command: bench --site all backup
-      ofelia.job-exec.datecron.schedule: "@every 6h"
+      ofelia.job-exec.datecron.schedule: "0 0 */6 * * *"
       ofelia.job-exec.datecron.user: frappe
     volumes:
       - sites:/home/frappe/frappe-bench/sites
@@ -117,7 +121,7 @@ services:
       configurator:
         condition: service_completed_successfully
 
-  # Runs the 6-hourly `bench --site all backup` defined by the scheduler labels above.
+  # Runs `bench --site all backup` at 00, 06, 12 and 18 UTC (scheduler labels above; ofelia cron has a seconds field).
   cron:
     image: mcuadros/ofelia:latest
     command: ["daemon", "--docker"]

@@ -5,5 +5,6 @@
   {"url": "https://github.com/frappe/telephony", "branch": "develop"},
   {"url": "https://github.com/frappe/helpdesk", "branch": "main"},
   {"url": "https://github.com/frappe/raven", "branch": "main"},
-  {"url": "https://github.com/frappe/insights", "branch": "version-3"}
+  {"url": "https://github.com/frappe/insights", "branch": "version-3"},
+  {"url": "https://github.com/frappe/offsite_backups", "branch": "version-16"}
 ]
