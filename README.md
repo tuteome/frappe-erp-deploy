@@ -1,12 +1,15 @@
-# Frappe ERP on Coolify (ERPNext + HR + CRM)
+# Frappe ERP on Coolify (ERPNext + HR + CRM + Helpdesk + Raven + Insights)
 
-This repo runs one Frappe stack on Coolify with three apps:
+This repo runs one Frappe stack on Coolify with these apps:
 
 - **ERPNext**: accounting, invoicing, stock and buying/selling
 - **Frappe HR** (`hrms`): employees, leave, attendance, payroll
 - **Frappe CRM**: leads and deals, served at `/crm`
+- **Helpdesk**: support tickets, served at `/helpdesk` (needs `telephony`, which is listed before it)
+- **Raven**: team chat, served at `/raven`
+- **Insights**: reports and dashboards, served at `/insights` (`version-3` branch; its `main` branch is the old 2.x line)
 
-All three are installed on one site, so they share users and data. For example, a CRM deal can become an ERPNext customer and quotation.
+All of them are installed on one site, so they share users and data. For example, a CRM deal can become an ERPNext customer and quotation.
 
 ## Why the image is self-built
 
@@ -93,7 +96,8 @@ bench new-site erp.tuteome.com \
   --mariadb-user-host-login-scope='%' \
   --db-root-password='<SERVICE_PASSWORD_MARIADB>' \
   --admin-password='<choose a strong one>' \
-  --install-app erpnext --install-app hrms --install-app crm
+  --install-app erpnext --install-app hrms --install-app crm \
+  --install-app telephony --install-app helpdesk --install-app raven --install-app insights
 ```
 
 - The site name **must equal the domain**, because nginx picks the site from the Host header.
@@ -135,7 +139,8 @@ To move to a new release line (for example `version-17`), check that erpnext, hr
 ### 11. Adding another Frappe app
 
 1. **Check compatibility.** The app must have a branch for your release line (`version-16`). Many Frappe apps,
-   such as helpdesk, insights, lms and builder, use `main` instead. Check the app's README for which Frappe versions it supports.
+   such as helpdesk, raven, lms and builder, use `main` instead (insights uses `version-3`).
+   Check `[tool.bench.frappe-dependencies]` in the app's `pyproject.toml` for the Frappe range and any app it needs. Check the app's README for which Frappe versions it supports.
    If the app depends on another app, list the dependency first.
 2. **Add one line to `apps.json`.** For example:
    ```json
