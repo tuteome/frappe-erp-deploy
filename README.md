@@ -23,6 +23,7 @@ is missing from the image.
 
 - `coolify-compose.yml`: the stack to paste into Coolify.
 - `easy-install-exact.yml`: what `easy-install.py deploy` would generate. It's for reference only and uses the broken image.
+- `apps.json`: the apps baked into the image. Edit this file to add an app.
 - `.github/workflows/build-image.yml`: the image build.
 
 `coolify-compose.yml` is the easy-install stack with these changes:
@@ -41,7 +42,7 @@ is missing from the image.
 
 ### 1. Build the image (about 30–45 min)
 
-1. Open **Actions → Build Frappe ERP image → Run workflow**. Keep the branch as `version-16` and run it.
+1. Open **Actions → Build Frappe ERP image → Run workflow**. Keep `frappe_branch` as `version-16` and run it.
 2. Wait for a green run. The **Verify all apps** step prints each app's version. The run summary shows the
    exact tag, for example `ghcr.io/tuteome/frappe-erp:version-16-3`.
 
@@ -130,6 +131,33 @@ To include uploaded files in a backup, run `bench --site all backup --with-files
 4. In the `backend` terminal, run `bench --site all migrate`.
 
 To move to a new release line (for example `version-17`), check that erpnext, hrms and crm all have that branch first.
+
+### 11. Adding another Frappe app
+
+1. **Check compatibility.** The app must have a branch for your release line (`version-16`). Many Frappe apps,
+   such as helpdesk, insights, lms and builder, use `main` instead. Check the app's README for which Frappe versions it supports.
+   If the app depends on another app, list the dependency first.
+2. **Add one line to `apps.json`.** For example:
+   ```json
+   {"url": "https://github.com/frappe/helpdesk", "branch": "main"}
+   ```
+   Commit and push the change.
+3. **Rebuild.** Run the workflow again. It fails if any app in `apps.json` is missing from the image.
+   Note the new tag, for example `version-16-2`.
+4. **Back up.** In the `backend` terminal, run `bench --site all backup --with-files`.
+5. **Redeploy.** Update all 7 image tags in Coolify to the new tag and redeploy.
+   The configurator refreshes `sites/apps.txt` automatically.
+6. **Install the app on the site.** In the `backend` terminal, run:
+   ```
+   bench --site erp.tuteome.com install-app helpdesk
+   bench --site erp.tuteome.com migrate
+   ```
+
+**Private apps:** this repo is public, so **never** put a token in `apps.json`. For a private app, move the app
+list into a repository secret instead (ask before doing this).
+
+To remove an app, run `bench --site erp.tuteome.com uninstall-app <app>` first, then remove it from `apps.json` and rebuild.
+The order matters: if you remove an app from the image while it's still installed on the site, the site breaks.
 
 ---
 

@@ -1,4 +1,4 @@
-# Builds one Frappe image with ERPNext (accounting), HRMS and CRM.
+# Builds one Frappe image with every app listed in apps.json (ERPNext, HRMS, CRM, ...).
 # Self-built because the official ghcr.io/frappe/crm images have shipped
 # without the crm app since v1.67.1 (frappe/crm#2538).
 # Uses frappe_docker's documented layered build with apps.json as a BuildKit secret.
@@ -7,8 +7,8 @@ name: Build Frappe ERP image
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: Release line for frappe, erpnext, hrms and crm
+      frappe_branch:
+        description: frappe/frappe branch (apps in apps.json must be on the matching line)
         default: version-16
 
 permissions:
@@ -26,17 +26,13 @@ jobs:
           repository: frappe/frappe_docker
           path: builds
 
-      # Order matters: hrms depends on erpnext.
-      - name: Write apps.json
-        run: |
-          cat > apps.json <<EOF
-          [
-            {"url": "https://github.com/frappe/erpnext", "branch": "${{ inputs.branch }}"},
-            {"url": "https://github.com/frappe/hrms", "branch": "${{ inputs.branch }}"},
-            {"url": "https://github.com/frappe/crm", "branch": "${{ inputs.branch }}"}
-          ]
-          EOF
-          cat apps.json
+      - name: Checkout this repo (apps.json)
+        uses: actions/checkout@v4
+        with:
+          path: config
+
+      - name: Show apps.json
+        run: cat config/apps.json
 
       - name: Image name
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/frappe-erp" >> "$GITHUB_ENV"
@@ -58,26 +54,31 @@ jobs:
           push: true
           build-args: |
             FRAPPE_PATH=https://github.com/frappe/frappe
-            FRAPPE_BRANCH=${{ inputs.branch }}
+            FRAPPE_BRANCH=${{ inputs.frappe_branch }}
           secret-files: |
-            apps_json=apps.json
+            apps_json=config/apps.json
           tags: |
-            ${{ env.IMAGE }}:${{ inputs.branch }}
-            ${{ env.IMAGE }}:${{ inputs.branch }}-${{ github.run_number }}
+            ${{ env.IMAGE }}:${{ inputs.frappe_branch }}
+            ${{ env.IMAGE }}:${{ inputs.frappe_branch }}-${{ github.run_number }}
 
       # The official images were never tested; this one is.
+      # Every app listed in apps.json (plus frappe) must be present and importable.
       - name: Verify all apps are in the image
         run: |
-          docker run --rm --entrypoint bash "$IMAGE:${{ inputs.branch }}-${{ github.run_number }}" -c '
+          expected=$(( $(jq length config/apps.json) + 1 ))
+          docker run --rm --entrypoint bash -e EXPECTED="$expected" "$IMAGE:${{ inputs.frappe_branch }}-${{ github.run_number }}" -c '
             set -e
             echo "apps/: $(ls apps | tr "\n" " ")"
-            for app in frappe erpnext hrms crm; do
+            count=0
+            for app in $(cat sites/apps.txt); do
               test -d "apps/$app"
-              grep -qx "$app" sites/apps.txt
               env/bin/python -c "import $app; print(\"$app\", getattr($app, \"__version__\", \"?\"))"
+              count=$((count + 1))
             done
+            echo "installed: $count, expected: $EXPECTED"
+            test "$count" -eq "$EXPECTED"
           '
 
       - name: Summary
         run: |
-          echo "Image: \`$IMAGE:${{ inputs.branch }}-${{ github.run_number }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Image: \`$IMAGE:${{ inputs.frappe_branch }}-${{ github.run_number }}\`" >> "$GITHUB_STEP_SUMMARY"
