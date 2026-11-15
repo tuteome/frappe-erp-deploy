@@ -9,6 +9,8 @@ This repo runs one Frappe stack on Coolify with these apps:
 - **Raven**: team chat, served at `/raven`
 - **Insights**: reports and dashboards, served at `/insights` (`version-3` branch; its `main` branch is the old 2.x line)
 - **Offsite Backups** (`offsite_backups`): daily backups to Cloudflare R2 (see step 9)
+- **Tuteome CRM** (`tuteome_crm`, private repo `tuteome/tuteome_crm`): Tuteome's sales and marketing layer on Frappe CRM.
+  It isn't in `apps.json`; the workflow adds it from a secret (see "Private apps" in step 11)
 
 All of them are installed on one site, so they share users and data. For example, a CRM deal can become an ERPNext customer and quotation.
 
@@ -27,7 +29,7 @@ is missing from the image.
 
 - `coolify-compose.yml`: the stack to paste into Coolify.
 - `easy-install-exact.yml`: what `easy-install.py deploy` would generate. It's for reference only and uses the broken image.
-- `apps.json`: the apps baked into the image. Edit this file to add an app.
+- `apps.json`: the public apps baked into the image. Edit this file to add an app. Private apps are added by the workflow (step 11).
 - `.github/workflows/build-image.yml`: the image build.
 
 `coolify-compose.yml` is the easy-install stack with these changes:
@@ -55,12 +57,13 @@ is missing from the image.
 
 ### 2. Let Coolify pull the image
 
-The package is private by default. Pick one of these:
+The image contains the private `tuteome_crm` code, so the package **must stay private**
+(github.com → your profile → **Packages → frappe-erp → Package settings**: visibility Private).
 
-- **Make it public** (simplest). The image contains only open-source code and no secrets.
-  Go to github.com → your profile → **Packages → frappe-erp → Package settings → Change visibility → Public**.
-- **Keep it private.** Create a GitHub token (classic) with only `read:packages`. Then on the Coolify server, run
-  `docker login ghcr.io -u tuteome` and paste the token as the password.
+On the Coolify server, log in once so it can pull:
+
+1. Create a GitHub token (classic) with only `read:packages`.
+2. On the server, run `docker login ghcr.io -u tuteome` and paste the token as the password.
 
 ### 3. DNS
 
@@ -102,7 +105,7 @@ bench new-site erp.tuteome.com \
   --admin-password='<choose a strong one>' \
   --install-app erpnext --install-app hrms --install-app crm \
   --install-app telephony --install-app helpdesk --install-app raven --install-app insights \
-  --install-app offsite_backups
+  --install-app offsite_backups --install-app tuteome_crm
 ```
 
 - The site name **must equal the domain**, because nginx picks the site from the Host header.
@@ -194,8 +197,19 @@ To move to a new release line (for example `version-17`), check that erpnext, hr
    bench --site erp.tuteome.com migrate
    ```
 
-**Private apps:** this repo is public, so **never** put a token in `apps.json`. For a private app, move the app
-list into a repository secret instead (ask before doing this).
+**Private apps:** this repo is public, so **never** put a token in `apps.json`. Private apps are added by the
+workflow's **Add private apps** step instead:
+
+- It merges `apps.json` with `https://x-access-token:<token>@github.com/tuteome/tuteome_crm` (branch `main`)
+  into a temp file outside the checkout, and passes that file as the `apps_json` build secret. The file is never printed.
+- The token is the repository secret **`TUTEOME_CRM_TOKEN`**: a fine-grained token, resource owner `tuteome`,
+  only the repository `tuteome/tuteome_crm`, permission **Contents: Read-only**. Set it under
+  **Settings → Secrets and variables → Actions**. Renew it before it expires; the build fails clearly when it's missing.
+- The workflow checks the token isn't left anywhere in the image (frappe_docker also strips every `apps/*/.git`).
+- Another private app (e.g. `tuteome_hr`) gets its own token and line in that step.
+
+**Releasing a `tuteome_crm` change:** push to `tuteome_crm`'s `main` (CI green), run this workflow, then follow
+step 10 (backup, new tag in Coolify, `bench --site all migrate`). The app's setup re-applies itself on migrate.
 
 To remove an app, run `bench --site erp.tuteome.com uninstall-app <app>` first, then remove it from `apps.json` and rebuild.
 The order matters: if you remove an app from the image while it's still installed on the site, the site breaks.

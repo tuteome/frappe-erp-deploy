@@ -34,6 +34,20 @@ jobs:
       - name: Show apps.json
         run: cat config/apps.json
 
+      # Private apps (tuteome_crm) are added here, outside the checkout, so the
+      # token never lands in this public repo or in the logs. Never `cat` this file.
+      # TUTEOME_CRM_TOKEN: fine-grained PAT, read-only Contents on tuteome/tuteome_crm.
+      - name: Add private apps
+        env:
+          TUTEOME_CRM_TOKEN: ${{ secrets.TUTEOME_CRM_TOKEN }}
+        run: |
+          test -n "$TUTEOME_CRM_TOKEN" || { echo "::error::Secret TUTEOME_CRM_TOKEN is not set"; exit 1; }
+          merged="$RUNNER_TEMP/apps.json"
+          jq --arg url "https://x-access-token:${TUTEOME_CRM_TOKEN}@github.com/tuteome/tuteome_crm" \
+            '. + [{"url": $url, "branch": "main"}]' config/apps.json > "$merged"
+          echo "APPS_JSON=$merged" >> "$GITHUB_ENV"
+          echo "Apps in image: $(jq length "$merged") (+ frappe)"
+
       - name: Image name
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/frappe-erp" >> "$GITHUB_ENV"
 
@@ -56,16 +70,16 @@ jobs:
             FRAPPE_PATH=https://github.com/frappe/frappe
             FRAPPE_BRANCH=${{ inputs.frappe_branch }}
           secret-files: |
-            apps_json=config/apps.json
+            apps_json=${{ env.APPS_JSON }}
           tags: |
             ${{ env.IMAGE }}:${{ inputs.frappe_branch }}
             ${{ env.IMAGE }}:${{ inputs.frappe_branch }}-${{ github.run_number }}
 
       # The official images were never tested; this one is.
-      # Every app listed in apps.json (plus frappe) must be present and importable.
+      # Every app listed in apps.json, plus the private apps and frappe, must be present and importable.
       - name: Verify all apps are in the image
         run: |
-          expected=$(( $(jq length config/apps.json) + 1 ))
+          expected=$(( $(jq length "$APPS_JSON") + 1 ))
           docker run --rm --entrypoint bash -e EXPECTED="$expected" "$IMAGE:${{ inputs.frappe_branch }}-${{ github.run_number }}" -c '
             set -e
             echo "apps/: $(ls apps | tr "\n" " ")"
@@ -78,6 +92,18 @@ jobs:
             echo "installed: $count, expected: $EXPECTED"
             test "$count" -eq "$EXPECTED"
           '
+
+      # The image is private (it contains tuteome_crm), but the token must still never be in it.
+      - name: Verify no token in the image
+        run: |
+          docker run --rm --entrypoint bash "$IMAGE:${{ inputs.frappe_branch }}-${{ github.run_number }}" -c '
+            if grep -rqs "x-access-token" apps sites; then echo "token found in image"; exit 1; fi
+            echo "no token in apps/ or sites/"
+          '
+
+      - name: Remove merged apps.json
+        if: always()
+        run: rm -f "$RUNNER_TEMP/apps.json"
 
       - name: Summary
         run: |
