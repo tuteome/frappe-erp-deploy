@@ -9,7 +9,7 @@ This repo runs one Frappe stack on Coolify with these apps:
 - **Raven**: team chat, served at `/raven`
 - **Insights**: reports and dashboards, served at `/insights` (`version-3` branch; its `main` branch is the old 2.x line)
 - **Offsite Backups** (`offsite_backups`): daily backups to Cloudflare R2 (see step 9)
-- **Tuteome CRM** (`tuteome_crm`, private repo `tuteome/tuteome_crm`): Tuteome's sales and marketing layer on Frappe CRM.
+- **Tuteome** (`tuteome`, private repo `tuteome/tuteome`): Tuteome's sales and marketing layer on Frappe CRM (its desk app is "Marketing").
   It isn't in `apps.json`; the workflow adds it from a secret (see "Private apps" in step 11)
 
 All of them are installed on one site, so they share users and data. For example, a CRM deal can become an ERPNext customer and quotation.
@@ -57,7 +57,7 @@ is missing from the image.
 
 ### 2. Let Coolify pull the image
 
-The image contains the private `tuteome_crm` code, so the package **must stay private**
+The image contains the private `tuteome` code, so the package **must stay private**
 (github.com → your profile → **Packages → frappe-erp → Package settings**: visibility Private).
 
 On the Coolify server, log in once so it can pull:
@@ -105,7 +105,7 @@ bench new-site erp.tuteome.com \
   --admin-password='<choose a strong one>' \
   --install-app erpnext --install-app hrms --install-app crm \
   --install-app telephony --install-app helpdesk --install-app raven --install-app insights \
-  --install-app offsite_backups --install-app tuteome_crm
+  --install-app offsite_backups --install-app tuteome
 ```
 
 - The site name **must equal the domain**, because nginx picks the site from the Host header.
@@ -200,15 +200,15 @@ To move to a new release line (for example `version-17`), check that erpnext, hr
 **Private apps:** this repo is public, so **never** put a token in `apps.json`. Private apps are added by the
 workflow's **Add private apps** step instead:
 
-- It merges `apps.json` with `https://x-access-token:<token>@github.com/tuteome/tuteome_crm` (branch `main`)
+- It merges `apps.json` with `https://x-access-token:<token>@github.com/tuteome/tuteome` (branch `main`)
   into a temp file outside the checkout, and passes that file as the `apps_json` build secret. The file is never printed.
 - The token is the repository secret **`TUTEOME_CRM_TOKEN`**: a fine-grained token, resource owner `tuteome`,
-  only the repository `tuteome/tuteome_crm`, permission **Contents: Read-only**. Set it under
+  only the repository `tuteome/tuteome`, permission **Contents: Read-only**. Set it under
   **Settings → Secrets and variables → Actions**. Renew it before it expires; the build fails clearly when it's missing.
 - The workflow checks the token isn't left anywhere in the image (frappe_docker also strips every `apps/*/.git`).
 - Another private app (e.g. `tuteome_hr`) gets its own token and line in that step.
 
-**Releasing a `tuteome_crm` change:** push to `tuteome_crm`'s `main` (CI green), run this workflow, then follow
+**Releasing a `tuteome` change:** push to `tuteome`'s `main` (CI green), run this workflow, then follow
 step 10 (backup, new tag in Coolify, `bench --site all migrate`). The app's setup re-applies itself on migrate.
 
 To remove an app, run `bench --site erp.tuteome.com uninstall-app <app>` first, then remove it from `apps.json` and rebuild.

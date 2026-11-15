@@ -34,16 +34,16 @@ jobs:
       - name: Show apps.json
         run: cat config/apps.json
 
-      # Private apps (tuteome_crm) are added here, outside the checkout, so the
+      # Private apps (tuteome) are added here, outside the checkout, so the
       # token never lands in this public repo or in the logs. Never `cat` this file.
-      # TUTEOME_CRM_TOKEN: fine-grained PAT, read-only Contents on tuteome/tuteome_crm.
+      # TUTEOME_CRM_TOKEN: fine-grained PAT, read-only Contents on tuteome/tuteome.
       - name: Add private apps
         env:
           TUTEOME_CRM_TOKEN: ${{ secrets.TUTEOME_CRM_TOKEN }}
         run: |
           test -n "$TUTEOME_CRM_TOKEN" || { echo "::error::Secret TUTEOME_CRM_TOKEN is not set"; exit 1; }
           merged="$RUNNER_TEMP/apps.json"
-          jq --arg url "https://x-access-token:${TUTEOME_CRM_TOKEN}@github.com/tuteome/tuteome_crm" \
+          jq --arg url "https://x-access-token:${TUTEOME_CRM_TOKEN}@github.com/tuteome/tuteome" \
             '. + [{"url": $url, "branch": "main"}]' config/apps.json > "$merged"
           echo "APPS_JSON=$merged" >> "$GITHUB_ENV"
           echo "Apps in image: $(jq length "$merged") (+ frappe)"
@@ -93,7 +93,7 @@ jobs:
             test "$count" -eq "$EXPECTED"
           '
 
-      # The image is private (it contains tuteome_crm), but the token must still never be in it.
+      # The image is private (it contains tuteome), but the token must still never be in it.
       - name: Verify no token in the image
         run: |
           docker run --rm --entrypoint bash "$IMAGE:${{ inputs.frappe_branch }}-${{ github.run_number }}" -c '
