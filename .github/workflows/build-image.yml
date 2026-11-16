@@ -34,17 +34,19 @@ jobs:
       - name: Show apps.json
         run: cat config/apps.json
 
-      # Private apps (tuteome) are added here, outside the checkout, so the
+      # Private apps (tuteome_academy, tuteome_marketing) are added here, outside the checkout, so the
       # token never lands in this public repo or in the logs. Never `cat` this file.
-      # TUTEOME_CRM_TOKEN: fine-grained PAT, read-only Contents on tuteome/tuteome.
+      # TUTEOME_CRM_TOKEN: fine-grained PAT, read-only Contents on tuteome/tuteome_academy and
+      # tuteome/tuteome_marketing. Academy first: tuteome_marketing requires it.
       - name: Add private apps
         env:
           TUTEOME_CRM_TOKEN: ${{ secrets.TUTEOME_CRM_TOKEN }}
         run: |
           test -n "$TUTEOME_CRM_TOKEN" || { echo "::error::Secret TUTEOME_CRM_TOKEN is not set"; exit 1; }
           merged="$RUNNER_TEMP/apps.json"
-          jq --arg url "https://x-access-token:${TUTEOME_CRM_TOKEN}@github.com/tuteome/tuteome" \
-            '. + [{"url": $url, "branch": "main"}]' config/apps.json > "$merged"
+          jq --arg base "https://x-access-token:${TUTEOME_CRM_TOKEN}@github.com/tuteome" \
+            '. + [{"url": ($base + "/tuteome_academy"), "branch": "main"},
+                  {"url": ($base + "/tuteome_marketing"), "branch": "main"}]' config/apps.json > "$merged"
           echo "APPS_JSON=$merged" >> "$GITHUB_ENV"
           echo "Apps in image: $(jq length "$merged") (+ frappe)"
 
