@@ -107,13 +107,17 @@ jobs:
 
       # The image is private (it contains tuteome), but the token must still never be in it. This looks
       # for the token itself: the words "x-access-token" also appear in apps' own CI files (.github/).
+      # /proc is pruned with find: it holds this container's own environment (the token), and grep's
+      # --exclude-dir does not skip it when the search starts at "/".
       - name: Verify no token in the image
         env:
           TUTEOME_CRM_TOKEN: ${{ secrets.TUTEOME_CRM_TOKEN }}
         run: |
           docker run --rm --entrypoint bash -e TOKEN="$TUTEOME_CRM_TOKEN" "$IMAGE:${{ inputs.frappe_branch }}-${{ github.run_number }}" -c '
             test -n "$TOKEN"
-            if grep -rqsF -- "$TOKEN" / --exclude-dir=proc --exclude-dir=sys --exclude-dir=dev; then echo "token found in image"; exit 1; fi
+            hits=$(find / \( -path /proc -o -path /sys -o -path /dev \) -prune -o -type f -print0 2>/dev/null \
+              | xargs -0 grep -lsF -- "$TOKEN" || true)
+            if [ -n "$hits" ]; then echo "token found in image, in:"; echo "$hits"; exit 1; fi
             echo "no token anywhere in the image"
           '
 
