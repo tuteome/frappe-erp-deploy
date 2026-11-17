@@ -61,13 +61,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      # Built into the runner's Docker first; pushed only once every check below has passed.
+      - name: Build
         uses: docker/build-push-action@v6
         with:
           context: builds
           file: builds/images/layered/Containerfile
           platforms: linux/amd64
-          push: true
+          load: true
           build-args: |
             FRAPPE_PATH=https://github.com/frappe/frappe
             FRAPPE_BRANCH=${{ inputs.frappe_branch }}
@@ -95,13 +96,22 @@ jobs:
             test "$count" -eq "$EXPECTED"
           '
 
-      # The image is private (it contains tuteome), but the token must still never be in it.
+      # The image is private (it contains tuteome), but the token must still never be in it. This looks
+      # for the token itself: the words "x-access-token" also appear in apps' own CI files (.github/).
       - name: Verify no token in the image
+        env:
+          TUTEOME_CRM_TOKEN: ${{ secrets.TUTEOME_CRM_TOKEN }}
         run: |
-          docker run --rm --entrypoint bash "$IMAGE:${{ inputs.frappe_branch }}-${{ github.run_number }}" -c '
-            if grep -rqs "x-access-token" apps sites; then echo "token found in image"; exit 1; fi
-            echo "no token in apps/ or sites/"
+          docker run --rm --entrypoint bash -e TOKEN="$TUTEOME_CRM_TOKEN" "$IMAGE:${{ inputs.frappe_branch }}-${{ github.run_number }}" -c '
+            test -n "$TOKEN"
+            if grep -rqsF -- "$TOKEN" / --exclude-dir=proc --exclude-dir=sys --exclude-dir=dev; then echo "token found in image"; exit 1; fi
+            echo "no token anywhere in the image"
           '
+
+      - name: Push
+        run: |
+          docker push "$IMAGE:${{ inputs.frappe_branch }}"
+          docker push "$IMAGE:${{ inputs.frappe_branch }}-${{ github.run_number }}"
 
       - name: Remove merged apps.json
         if: always()
