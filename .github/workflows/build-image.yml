@@ -26,6 +26,15 @@ jobs:
           repository: frappe/frappe_docker
           path: builds
 
+      # bench logs every command it runs to logs/bench.log, including the private apps' clone URLs with
+      # the token in them. The build step clears logs/ before the final image copies the bench, so the
+      # token is in no layer of it. Fails if frappe_docker changes the line this edit hangs on.
+      - name: Keep the token out of the image
+        run: |
+          f=builds/images/layered/Containerfile
+          perl -0pi -e 's#(xargs rm -fr && \\\n)#$1  rm -rf logs/* && \\\n#' "$f"
+          grep -q 'rm -rf logs/\*' "$f" || { echo "::error::frappe_docker's Containerfile changed; update this step"; exit 1; }
+
       - name: Checkout this repo (apps.json)
         uses: actions/checkout@v4
         with:
